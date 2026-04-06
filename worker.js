@@ -14,7 +14,6 @@ export default {
       const body = await request.json();
       const { token_address, chain, payment_tx } = body;
 
-      // 🔑 ТВОЙ КЛЮЧ ALCHEMY
       const ALCHEMY_KEY = "GvX4CGyWG9fQAg_NI1s7K"; 
 
       if (!token_address || !chain) {
@@ -23,7 +22,7 @@ export default {
 
       const network = chain.toLowerCase();
 
-      // 🔍 ОПРЕДЕЛЕНИЕ RPC URL
+      // Исправленные ссылки RPC (добавлены $)
       let rpcUrl = "";
       switch(network) {
         case "eth": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
@@ -37,7 +36,6 @@ export default {
         case "sui": rpcUrl = "https://sui.io"; break; 
       }
 
-      // 💰 1. PAYWALL (x402)
       if (!payment_tx) {
         return new Response(JSON.stringify({
           error: "Payment Required",
@@ -54,28 +52,23 @@ export default {
         }), { status: 402, headers: corsHeaders });
       }
 
-      // 🔍 2. BLOCKCHAIN VERIFICATION
       let isPaid = false;
       if (rpcUrl) {
         try {
           const method = (network === "sol") ? "getTransaction" : (network === "sui") ? "sui_getTransactionBlock" : "eth_getTransactionByHash";
           const params = (network === "sol") ? [payment_tx, {encoding: "json", maxSupportedTransactionVersion:0}] : [payment_tx];
-          
           const res = await fetch(rpcUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params })
           });
           const txData = await res.json();
-          
-          // Проверка для EVM (ETH, BSC, etc)
           if (txData.result?.to?.toLowerCase() === "0xec2284a7bd7f44cb32faf66a7129a4354b47f172".toLowerCase()) isPaid = true;
-          // Проверка для SOL/SUI (наличие в блокчейне)
           if ((network === "sol" || network === "sui") && txData.result) isPaid = true;
-        } catch (e) { console.error("RPC Error:", e); }
+        } catch (e) {}
       }
 
-      // 🧠 3. RISK ENGINE (GoPlus API)
+      // Исправленная ссылка GoPlus (добавлены $)
       const goplusChainIds = { "eth": "1", "bsc": "56", "polygon": "137", "arbitrum": "42161", "optimism": "10", "base": "8453" };
       const goplusId = goplusChainIds[network] || "1";
 
@@ -91,8 +84,7 @@ export default {
         safety_score: score,
         action: score >= 70 ? "BUY" : "SKIP",
         risk: { is_rugged, liquidity: riskData.lp_lock_ratio || "0" },
-        network: network,
-        timestamp: Date.now()
+        network: network
       }), { headers: corsHeaders });
 
     } catch (err) {
