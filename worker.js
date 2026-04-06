@@ -161,10 +161,17 @@ function computeScore(riskData, chain) {
 
   // Ownership / liquidity (–10 each)
   if (riskData.owner_change_balance === "1") { flags.push("OWNER_CAN_CHANGE_BALANCE"); score -= 20; }
+  // Only penalise low LP lock if the field was explicitly provided (avoid false penalty on missing data)
   const lpRatio = parseFloat(riskData.lp_lock_ratio || 0);
-  if (lpRatio < 0.5)                       { flags.push(`LOW_LP_LOCK(${(lpRatio*100).toFixed(0)}%)`); score -= 10; }
+  if (riskData.lp_lock_ratio !== undefined && lpRatio < 0.5) {
+    flags.push(`LOW_LP_LOCK(${(lpRatio*100).toFixed(0)}%)`);
+    score -= 10;
+  }
   const holderCount = parseInt(riskData.holder_count || 0);
   if (holderCount > 0 && holderCount < 50) { flags.push(`LOW_HOLDERS(${holderCount})`); score -= 10; }
+
+  // Hard floor: honeypot tokens are always SKIP regardless of other signals
+  if (riskData.is_honeypot === "1") score = Math.min(score, 29);
 
   // Positive signals
   if (riskData.is_open_source === "1")     flags.push("OPEN_SOURCE ✓");
