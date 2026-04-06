@@ -6,15 +6,15 @@ const WALLETS = {
   sol: "8ktcWtZdjJQNefuPvGE5kHEdRV2NaPfZKWTFH3QDt1g",
 };
 
-// USDC (Solana)
-const SOL_USDC_MINT =
-  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
-
 // ─── CHAINS ───────────────────────────────────────────────
 const CHAINS = {
   eth: { alchemyNet: "eth-mainnet", type: "evm" },
   polygon: { alchemyNet: "polygon-mainnet", type: "evm" },
   arbitrum: { alchemyNet: "arb-mainnet", type: "evm" },
+  optimism: { alchemyNet: "opt-mainnet", type: "evm" },
+  base: { alchemyNet: "base-mainnet", type: "evm" },
+  bsc: { rpc: "https://bsc-dataseed.binance.org/", type: "evm" },
+  monad: { rpc: "https://rpc.monad.xyz", type: "evm" },
   sol: { alchemyNet: "solana-mainnet", type: "sol" },
 };
 
@@ -33,6 +33,7 @@ function json(data, status = 200) {
   });
 }
 
+// ─── RPC ────────────────────────────────────────────────
 function rpcUrl(chain, alchemyKey) {
   const c = CHAINS[chain];
   if (!c) return null;
@@ -41,15 +42,17 @@ function rpcUrl(chain, alchemyKey) {
     return `https://solana-mainnet.g.alchemy.com/v2/${alchemyKey}`;
   }
 
+  if (c.rpc) return c.rpc;
+
   return `https://${c.alchemyNet}.g.alchemy.com/v2/${alchemyKey}`;
 }
 
-// ─── PAYMENT VERIFICATION ────────────────────────────────
+// ─── PAYMENT CHECK ───────────────────────────────────────
 async function verifyPayment(txHash, chain, env) {
   const url = rpcUrl(chain, env.ALCHEMY_KEY);
   if (!url) return { verified: false };
 
-  // ─── SOLANA ───────────────────────────────────────────
+  // SOLANA
   if (chain === "sol") {
     const res = await fetch(url, {
       method: "POST",
@@ -60,7 +63,7 @@ async function verifyPayment(txHash, chain, env) {
         method: "getTransaction",
         params: [
           txHash,
-          { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 },
+          { encoding: "jsonParsed" },
         ],
       }),
     });
@@ -70,22 +73,18 @@ async function verifyPayment(txHash, chain, env) {
 
     if (!tx || tx.meta?.err) return { verified: false };
 
-    const instructions =
-      tx.transaction.message.instructions || [];
-
-    const ok = instructions.some((ix) => {
+    const ok = (tx.transaction.message.instructions || []).some((ix) => {
       const p = ix.parsed;
       return (
         p?.type === "transfer" &&
-        (p.info?.destination === WALLETS.sol ||
-          p.info?.destination === WALLETS.sol)
+        p.info?.destination === WALLETS.sol
       );
     });
 
     return { verified: ok };
   }
 
-  // ─── EVM ──────────────────────────────────────────────
+  // EVM
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -176,17 +175,7 @@ async function explain(result, env) {
           messages: [
             {
               role: "user",
-              content: `
-You are a crypto risk agent.
-
-Data:
-${JSON.stringify(result, null, 2)}
-
-Explain briefly:
-- risks
-- verdict
-- why
-              `,
+              content: `Explain this crypto risk clearly:\n${JSON.stringify(result, null, 2)}`,
             },
           ],
         }),
@@ -209,24 +198,27 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
-    const chain = "eth"; // можно расширить
 
     // HEALTH
     if (path === "/health") {
       return json({ status: "ok" });
     }
 
+    // LIST CHAINS
+    if (path === "/chains") {
+      return json({
+        chains: Object.keys(CHAINS).map((c) => ({
+          id: c,
+          type: CHAINS[c].type,
+        })),
+      });
+    }
+
     // FREE PREVIEW
     if (path === "/preview") {
       const { token } = await request.json();
-
       const data = await fetchTokenData(token);
-      const result = computeScore(data);
-
-      return json({
-        preview: true,
-        ...result,
-      });
+      return json({ preview: true, ...computeScore(data) });
     }
 
     // PAID AGENT
@@ -237,21 +229,14 @@ export default {
       if (!token) return json({ error: "token required" }, 400);
 
       if (!payment_tx) {
-        return json(
-          {
-            error: "Payment required",
-            price_usdc: PRICE_USDC,
-            wallets: WALLETS,
-          },
-          402
-        );
+        return json({
+          error: "Payment required",
+          price: PRICE_USDC,
+          wallets: WALLETS,
+        }, 402);
       }
 
-      const payment = await verifyPayment(
-        payment_tx,
-        chain,
-        env
-      );
+      const payment = await verifyPayment(payment_tx, chain, env);
 
       if (!payment.verified) {
         return json({ error: "Payment not verified" }, 402);
@@ -259,7 +244,6 @@ export default {
 
       const raw = await fetchTokenData(token);
       const result = computeScore(raw);
-
       const explanation = await explain(result, env);
 
       return json({
