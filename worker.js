@@ -23,7 +23,7 @@ export default {
 
       const network = chain.toLowerCase();
 
-      // 🔍 ОПРЕДЕЛЕНИЕ RPC URL (Исправлено)
+      // 🔍 ОПРЕДЕЛЕНИЕ RPC URL
       let rpcUrl = "";
       switch(network) {
         case "eth": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
@@ -32,12 +32,12 @@ export default {
         case "optimism": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
         case "base": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
         case "sol": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break; 
-        case "bsc": rpcUrl = "https://binance.llamarpc.com"; break; 
-        case "monad": rpcUrl = "https://rpc-devnet.monad.xyz"; break; 
-        case "sui": rpcUrl = "https://fullnode.mainnet.sui.io"; break; 
+        case "bsc": rpcUrl = "https://llamarpc.com"; break; 
+        case "monad": rpcUrl = "https://monad.xyz"; break; 
+        case "sui": rpcUrl = "https://sui.io"; break; 
       }
 
-      // 💰 1. PAYWALL
+      // 💰 1. PAYWALL (x402)
       if (!payment_tx) {
         return new Response(JSON.stringify({
           error: "Payment Required",
@@ -68,12 +68,14 @@ export default {
           });
           const txData = await res.json();
           
+          // Проверка для EVM (ETH, BSC, etc)
           if (txData.result?.to?.toLowerCase() === "0xec2284a7bd7f44cb32faf66a7129a4354b47f172".toLowerCase()) isPaid = true;
+          // Проверка для SOL/SUI (наличие в блокчейне)
           if ((network === "sol" || network === "sui") && txData.result) isPaid = true;
-        } catch (e) { console.error("RPC Error"); }
+        } catch (e) { console.error("RPC Error:", e); }
       }
 
-      // 🧠 3. RISK ENGINE (GoPlus) (Исправлено)
+      // 🧠 3. RISK ENGINE (GoPlus API)
       const goplusChainIds = { "eth": "1", "bsc": "56", "polygon": "137", "arbitrum": "42161", "optimism": "10", "base": "8453" };
       const goplusId = goplusChainIds[network] || "1";
 
@@ -89,11 +91,12 @@ export default {
         safety_score: score,
         action: score >= 70 ? "BUY" : "SKIP",
         risk: { is_rugged, liquidity: riskData.lp_lock_ratio || "0" },
-        network: network
+        network: network,
+        timestamp: Date.now()
       }), { headers: corsHeaders });
 
     } catch (err) {
-      return new Response(JSON.stringify({ error: "Internal Error" }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Internal Error", details: err.message }), { status: 500, headers: corsHeaders });
     }
   }
 };
