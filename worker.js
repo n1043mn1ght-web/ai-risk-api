@@ -14,7 +14,7 @@ export default {
       const body = await request.json();
       const { token_address, chain, payment_tx } = body;
 
-      // 🔑 ТВОЙ КЛЮЧ ALCHEMY (работает для ETH, Poly, Arb, Opt, Base, SOL)
+      // 🔑 ТВОЙ КЛЮЧ ALCHEMY
       const ALCHEMY_KEY = "GvX4CGyWG9fQAg_NI1s7K"; 
 
       if (!token_address || !chain) {
@@ -23,7 +23,7 @@ export default {
 
       const network = chain.toLowerCase();
 
-      // 🔍 ОПРЕДЕЛЕНИЕ RPC URL
+      // 🔍 ОПРЕДЕЛЕНИЕ RPC URL (Исправлено)
       let rpcUrl = "";
       switch(network) {
         case "eth": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
@@ -31,10 +31,10 @@ export default {
         case "arbitrum": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
         case "optimism": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
         case "base": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break;
-        case "sol": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break; // Alchemy теперь тянет SOL!
-        case "bsc": rpcUrl = "https://llamarpc.com"; break; // Alchemy не знает BSC
-        case "monad": rpcUrl = "https://monad.xyz"; break; // Тестнет
-        case "sui": rpcUrl = "https://sui.io"; break; // Публичный узел SUI
+        case "sol": rpcUrl = `https://alchemy.com{ALCHEMY_KEY}`; break; 
+        case "bsc": rpcUrl = "https://binance.llamarpc.com"; break; 
+        case "monad": rpcUrl = "https://rpc-devnet.monad.xyz"; break; 
+        case "sui": rpcUrl = "https://fullnode.mainnet.sui.io"; break; 
       }
 
       // 💰 1. PAYWALL
@@ -68,14 +68,12 @@ export default {
           });
           const txData = await res.json();
           
-          // Логика проверки: для EVM проверяем поле .to
-          if (txData.result?.to?.toLowerCase() === "0xec2284a7bd7f44cb32faf66a7129a4354B47F172".toLowerCase()) isPaid = true;
-          // Для SOL/SUI просто наличие транзакции (для упрощения MVP)
+          if (txData.result?.to?.toLowerCase() === "0xec2284a7bd7f44cb32faf66a7129a4354b47f172".toLowerCase()) isPaid = true;
           if ((network === "sol" || network === "sui") && txData.result) isPaid = true;
         } catch (e) { console.error("RPC Error"); }
       }
 
-      // 🧠 3. RISK ENGINE (GoPlus)
+      // 🧠 3. RISK ENGINE (GoPlus) (Исправлено)
       const goplusChainIds = { "eth": "1", "bsc": "56", "polygon": "137", "arbitrum": "42161", "optimism": "10", "base": "8453" };
       const goplusId = goplusChainIds[network] || "1";
 
